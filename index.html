@@ -16,10 +16,10 @@
     <header class="hero">
       <div class="heroArt">
         <div class="badge">Peajes Colombia · Tráfico Total</div>
-        <h1>Del dato al relato: ¿dónde se concentra el tráfico?</h1>
+        <h1>¿Cómo se mueve el país? Que nos dicen los peajes...</h1>
         <p class="sub">
           Una vista híbrida: <b>historia</b> (conclusiones) + <b>dashboard</b> (filtros y evidencia). 
-          Calculado <b>en vivo</b> desde el archivo <code>data_trafico_total.csv</code>.
+          Calculado </b> desde el archivo <code>data_trafico_total.csv</code>.
         </p>
       </div>
     </header>
@@ -44,7 +44,7 @@
           <select id="estacion"></select>
         </div>
       </div>
-      <p class="hint">Tip: deja filtros en “(Todos)” para la vista nacional.</p>
+      <p class="hint">Tip: Si quieres el total nacional deja en los filtros “(Todos)”.</p>
     </section>
 
     <section class="grid3">
@@ -63,14 +63,14 @@
     </section>
 
     <section class="card">
-      <h2>1) Historia (conclusiones automáticas)</h2>
+      <h2>1) Nuestros Hallazgos </h2>
       <div id="story" class="story"></div>
     </section>
 
     <section class="grid2">
       <section class="card">
         <h2>2) Tendencia temporal</h2>
-        <p class="muted">Suma de tráfico total agregado por Año-Mes (según filtros).</p>
+        <p class="muted">Suma de tráfico total agregado por Año-Mes (según tus filtros).</p>
         <div id="chart_timeseries" class="chart h420"></div>
       </section>
 
@@ -88,7 +88,7 @@
 
       <section class="card">
         <h2>5) Mapa (departamentos)</h2>
-        <p class="muted">Choropleth por departamento (usa GeoJSON público). Si falla el GeoJSON, la página sigue funcionando.</p>
+        <p class="muted">Choropleth por departamento (usa GeoJSON público).</p>
         <div id="map" class="map"></div>
       </section>
     </section>
@@ -96,13 +96,12 @@
     <section class="card">
       <h2>Metodología / Datos</h2>
       <p class="muted">
-        Fuente: <code>data_trafico_total.csv</code>. Esta página no “inventa” números: recalcula agregaciones al vuelo.
-        Los valores faltantes (mes o tráfico) se excluyen de las sumas.
+        Fuente: <code>data_trafico_total.csv</code>
       </p>
     </section>
 
     <footer class="footer">
-      <div>Hecho para demo en Replit (internet permitido). Si necesitas versión offline, también se puede.</div>
+      <div>Hecho para demo en Replit.</div>
     </footer>
   </div>
 

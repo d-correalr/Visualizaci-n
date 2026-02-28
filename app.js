@@ -104,8 +104,8 @@ function setStory(filtered, total, topDep, topEst) {
       con <b>${topEst ? fmt(topEst[1]) : '—'}</b> (${estShare.toFixed(1)}%).</p>
     </div>
     <p>
-      Lectura operativa: si el objetivo es maximizar impacto, una estrategia razonable es comenzar por el top territorial
-      (departamentos) y luego por el top de estaciones dentro de cada territorio.
+      Nuestra sugerencia: si queremos maximizar el impacto de cualquier intervención vial, una estrategia razonable es comenzar por el top territorial
+      (departamentos) y luego por el top de estaciones dentro de cada territorio. Esto nos dará una visión general sobre como es el trafico del país y sus cuellos de botella.
     </p>
   `;
 }
@@ -233,7 +233,7 @@ async function initMap() {
       style: () => ({ fillColor: '#122449', weight: 1.2, color: '#1f2a3f', fillOpacity: 0.12 }),
     }).addTo(MAP);
 
-    // Department centroid markers (approx). Only for common departments; extend as needed.
+    
     const CENTROIDS = {
       'SANTANDER': [7.12, -73.12],
       'ANTIOQUIA': [6.25, -75.58],
