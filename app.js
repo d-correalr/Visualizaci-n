@@ -309,13 +309,60 @@ async function loadCSV() {
   }).filter(r => r.anio !== null);
 }
 
-function populateFilters() {
-  addOptions(els.anio, uniq(DATA.map(r=>r.anio)).sort((a,b)=>a-b));
-  addOptions(els.mes, uniq(DATA.map(r=>r.mes)).filter(x=>x!==null).sort((a,b)=>a-b));
-  addOptions(els.depto, uniq(DATA.map(r=>r.departamento)).sort());
-  addOptions(els.estacion, uniq(DATA.map(r=>r.estacion)).sort());
+function computeAvailableOptions(current) {
+  // Cascading filters: compute valid options for each dropdown given the others.
+  const base = DATA;
 
-  [els.anio, els.mes, els.depto, els.estacion].forEach(el => el.addEventListener('change', render));
+  const filteredForAnio = applyFilters(base, { ...current, anio: null });
+  const filteredForMes = applyFilters(base, { ...current, mes: null });
+  const filteredForDepto = applyFilters(base, { ...current, departamento: null });
+  const filteredForEst = applyFilters(base, { ...current, estacion: null });
+
+  return {
+    anios: uniq(filteredForAnio.map(r => r.anio)).sort((a,b)=>a-b),
+    meses: uniq(filteredForMes.map(r => r.mes)).filter(x=>x!==null).sort((a,b)=>a-b),
+    deptos: uniq(filteredForDepto.map(r => r.departamento)).sort(),
+    estaciones: uniq(filteredForEst.map(r => r.estacion)).sort(),
+  };
+}
+
+function repopulateFilters() {
+  const current = getFilters();
+  const opts = computeAvailableOptions(current);
+
+  // Preserve selection if still valid, else reset
+  const keepOrReset = (select, validValues) => {
+    const prev = select.value;
+    const ok = prev === '' || validValues.map(String).includes(String(prev));
+    return ok ? prev : '';
+  };
+
+  const prevAnio = keepOrReset(els.anio, opts.anios);
+  const prevMes = keepOrReset(els.mes, opts.meses);
+  const prevDepto = keepOrReset(els.depto, opts.deptos);
+  const prevEst = keepOrReset(els.estacion, opts.estaciones);
+
+  addOptions(els.anio, opts.anios);
+  addOptions(els.mes, opts.meses);
+  addOptions(els.depto, opts.deptos);
+  addOptions(els.estacion, opts.estaciones);
+
+  els.anio.value = prevAnio;
+  els.mes.value = prevMes;
+  els.depto.value = prevDepto;
+  els.estacion.value = prevEst;
+}
+
+function populateFilters() {
+  // initial fill
+  repopulateFilters();
+
+  const onChange = () => {
+    repopulateFilters();
+    render();
+  };
+
+  [els.anio, els.mes, els.depto, els.estacion].forEach(el => el.addEventListener('change', onChange));
 }
 
 async function main() {
