@@ -18,6 +18,13 @@ body{
 }
 .wrap{max-width:1180px;margin:0 auto;padding:28px 22px 40px}
 .hero{margin-bottom:14px}
+.heroArt{
+  background: url('./assets/hero.svg') center/cover no-repeat;
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:18px;
+  margin-bottom:12px;
+}
 .badge{display:inline-block;padding:6px 10px;border-radius:999px;font-size:.78rem;
   background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.28);color:#ffd38a}
 .hero h1{margin:10px 0 6px;font-size:2rem;letter-spacing:-.02em}

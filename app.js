@@ -183,32 +183,41 @@ function render() {
 function refreshGeoLayer() {
   if (!MAP || !GEO_LAYER) return;
 
-  // recompute styling
   const vals = Object.values(DEPT_VALUES);
   const max = Math.max(...vals, 1);
-  const min = Math.min(...vals, 0);
 
   const color = (v) => {
-    if (v == null) return '#2a364d';
-    const t = (v - min) / (max - min || 1);
-    const r = Math.round(40 + 180 * t);
-    const g = Math.round(90 + 120 * t);
-    const b = Math.round(60 + 40 * (1 - t));
+    if (v == null) return '#22c55e';
+    const t = Math.max(0, Math.min(1, v / (max || 1)));
+    // amber -> green
+    const r = Math.round(245 - 120 * t);
+    const g = Math.round(158 + 60 * t);
+    const b = Math.round(11 + 40 * (1 - t));
     return `rgb(${r},${g},${b})`;
   };
 
-  GEO_LAYER.setStyle(feat => {
-    const name = norm(feat.properties?.NOMBRE_DPT || feat.properties?.name || '');
-    const v = DEPT_VALUES[name];
-    return { fillColor: color(v), weight: 1, color: '#1f2a3f', fillOpacity: 0.78 };
-  });
+  // Keep country outline subtle
+  GEO_LAYER.setStyle(() => ({ fillColor: '#122449', weight: 1.2, color: '#1f2a3f', fillOpacity: 0.10 }));
 
-  GEO_LAYER.eachLayer(layer => {
-    const feat = layer.feature;
-    const name = (feat.properties?.NOMBRE_DPT || feat.properties?.name || '');
-    const v = DEPT_VALUES[norm(name)] || 0;
-    layer.bindTooltip(`<b>${name}</b><br>Tráfico total: ${fmt(v)}`);
-  });
+  // Refresh markers
+  if (MAP.__markerLayer) {
+    MAP.__markerLayer.clearLayers();
+    const CENTROIDS = MAP.__centroids || {};
+
+    for (const [dep, v] of Object.entries(DEPT_VALUES)) {
+      const c = CENTROIDS[dep];
+      if (!c) continue;
+      const radius = 6 + 18 * (v / (max || 1));
+      const marker = L.circleMarker(c, {
+        radius,
+        color: '#0b1220',
+        weight: 1,
+        fillColor: color(v),
+        fillOpacity: 0.85,
+      }).addTo(MAP.__markerLayer);
+      marker.bindTooltip(`<b>${dep}</b><br>Tráfico total: ${fmt(v)}`);
+    }
+  }
 }
 
 async function initMap() {
@@ -219,10 +228,46 @@ async function initMap() {
   }).addTo(MAP);
 
   try {
-    const geo = await fetch('https://raw.githubusercontent.com/marcovega/colombia-json/master/colombia.min.geo.json').then(r=>r.json());
+    const geo = await fetch('./colombia.geojson').then(r=>r.json());
     GEO_LAYER = L.geoJSON(geo, {
-      style: () => ({ fillColor: '#2a364d', weight: 1, color: '#1f2a3f', fillOpacity: 0.78 }),
+      style: () => ({ fillColor: '#122449', weight: 1.2, color: '#1f2a3f', fillOpacity: 0.12 }),
     }).addTo(MAP);
+
+    // Department centroid markers (approx). Only for common departments; extend as needed.
+    const CENTROIDS = {
+      'SANTANDER': [7.12, -73.12],
+      'ANTIOQUIA': [6.25, -75.58],
+      'CUNDINAMARCA': [4.71, -74.07],
+      'VALLE DEL CAUCA': [3.45, -76.53],
+      'BOYACA': [5.54, -73.36],
+      'CESAR': [10.47, -73.25],
+      'TOLIMA': [4.44, -75.24],
+      'CAUCA': [2.44, -76.61],
+      'CORDOBA': [8.75, -75.88],
+      'RISARALDA': [4.81, -75.69],
+      'NORTE DE SAN': [7.89, -72.50],
+      'GUAJIRA': [11.54, -72.91],
+      'HUILA': [2.93, -75.28],
+      'CALDAS': [5.07, -75.52],
+      'NARINO': [1.21, -77.28],
+      'ATLANTICO': [10.98, -74.80],
+      'BOLIVAR': [10.39, -75.48],
+      'MAGDALENA': [11.24, -74.20],
+      'META': [4.15, -73.64],
+      'QUINDIO': [4.53, -75.68],
+      'CASANARE': [5.35, -72.41],
+      'SUCRE': [9.30, -75.40],
+      'CAQUETA': [1.61, -75.61],
+      'PUTUMAYO': [0.83, -77.64],
+      'CHOCO': [5.69, -76.66],
+      'ARAUCA': [7.08, -70.76],
+    };
+
+    // Marker layer
+    const markerLayer = L.layerGroup().addTo(MAP);
+    MAP.__markerLayer = markerLayer;
+    MAP.__centroids = CENTROIDS;
+
     refreshGeoLayer();
   } catch (e) {
     const note = L.control({ position: 'topright' });
