@@ -1,31 +1,22 @@
+// Static dashboard for Tráfico Total (desktop)
+// Primary file: data_trafico_total.csv (UTF-8)
+
 const els = {
+  file: document.getElementById('file'),
+  btnReload: document.getElementById('btnReload'),
+  status: document.getElementById('status'),
   anio: document.getElementById('anio'),
   mes: document.getElementById('mes'),
   depto: document.getElementById('depto'),
   estacion: document.getElementById('estacion'),
-  kpi_total: document.getElementById('kpi_total'),
-  kpi_rows: document.getElementById('kpi_rows'),
-  kpi_cov: document.getElementById('kpi_cov'),
-  story: document.getElementById('story'),
+  insights: document.getElementById('insights'),
+  btnDownloadFiltered: document.getElementById('btnDownloadFiltered'),
 };
 
 let DATA = [];
-let MAP = null;
-let GEO_LAYER = null;
-let DEPT_VALUES = {};
 
-function fmt(n) {
-  try { return new Intl.NumberFormat('es-CO').format(Math.round(n)); }
-  catch { return String(Math.round(n)); }
-}
-
-function norm(s) {
-  return (s || '')
-    .toString()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .trim();
+function setStatus(msg) {
+  els.status.textContent = `Estado: ${msg}`;
 }
 
 function uniq(arr) {
@@ -38,6 +29,7 @@ function addOptions(select, values, labelAll='(Todos)') {
   optAll.value = '';
   optAll.textContent = labelAll;
   select.appendChild(optAll);
+
   values.forEach(v => {
     const opt = document.createElement('option');
     opt.value = String(v);
@@ -80,45 +72,50 @@ function sumMap(rows, keyFn) {
   return m;
 }
 
-function topN(map, n) {
-  return Array.from(map.entries()).sort((a,b)=>b[1]-a[1]).slice(0,n);
+function fmtNum(n) {
+  try {
+    return new Intl.NumberFormat('es-CO').format(Math.round(n));
+  } catch {
+    return String(Math.round(n));
+  }
 }
 
-function setStory(filtered, total, topDep, topEst) {
-  const nRows = filtered.length;
-  const nDept = uniq(filtered.map(r=>r.departamento)).length;
-  const nEst = uniq(filtered.map(r=>r.estacion)).length;
+function setInsights(filtered) {
+  els.insights.innerHTML = '';
 
-  const depShare = total ? (topDep?.[1] || 0) / total * 100 : 0;
-  const estShare = total ? (topEst?.[1] || 0) / total * 100 : 0;
+  const total = filtered.reduce((acc, r) => acc + (r.trafico_total || 0), 0);
+  const nEst = uniq(filtered.map(r => r.estacion)).length;
+  const nDept = uniq(filtered.map(r => r.departamento)).length;
 
-  els.story.innerHTML = `
-    <p>
-      Con los filtros actuales, el <b>tráfico total</b> suma <b>${fmt(total)}</b>.
-      Estamos viendo <b>${fmt(nRows)}</b> registros, que cubren <b>${nDept}</b> departamentos y <b>${nEst}</b> estaciones.
-    </p>
-    <div class="callout">
-      <p style="margin:0"><b>Concentración</b>: el departamento líder es <b>${topDep ? topDep[0] : '—'}</b>
-      con <b>${topDep ? fmt(topDep[1]) : '—'}</b> (${depShare.toFixed(1)}%).</p>
-      <p style="margin:8px 0 0"><b>Estación crítica</b>: la estación #1 es <b>${topEst ? topEst[0] : '—'}</b>
-      con <b>${topEst ? fmt(topEst[1]) : '—'}</b> (${estShare.toFixed(1)}%).</p>
-    </div>
-    <p>
-      Nuestra sugerencia: si queremos maximizar el impacto de cualquier intervención vial, una estrategia razonable es comenzar por el top territorial
-      (departamentos) y luego por el top de estaciones dentro de cada territorio. Esto nos dará una visión general sobre como es el trafico del país y sus cuellos de botella.
-    </p>
-  `;
+  const byDep = Array.from(sumMap(filtered, r => r.departamento).entries()).sort((a,b)=>b[1]-a[1]);
+  const topDep = byDep[0];
+
+  const byEst = Array.from(sumMap(filtered, r => r.estacion).entries()).sort((a,b)=>b[1]-a[1]);
+  const topEst = byEst[0];
+
+  const add = (html) => {
+    const li = document.createElement('li');
+    li.className = 'bg-slate-950/40 border border-slate-800 rounded-lg p-3';
+    li.innerHTML = html;
+    els.insights.appendChild(li);
+  };
+
+  add(`<b>Total (filtro actual):</b> ${fmtNum(total)}.<br><span class="text-slate-400">Cobertura: ${nDept} departamentos, ${nEst} estaciones.</span>`);
+
+  if (topDep) {
+    const share = total ? (topDep[1] / total) * 100 : 0;
+    add(`<b>Departamento #1:</b> ${topDep[0]} con ${fmtNum(topDep[1])} (${share.toFixed(1)}%).`);
+  }
+
+  if (topEst) {
+    const share = total ? (topEst[1] / total) * 100 : 0;
+    add(`<b>Estación #1:</b> ${topEst[0]} con ${fmtNum(topEst[1])} (${share.toFixed(1)}%).`);
+  }
 }
 
 function render() {
   const f = getFilters();
   const filtered = applyFilters(DATA, f);
-
-  // KPIs
-  const total = filtered.reduce((acc,r)=>acc + (r.trafico_total||0), 0);
-  els.kpi_total.textContent = fmt(total);
-  els.kpi_rows.textContent = fmt(filtered.length);
-  els.kpi_cov.textContent = `${uniq(filtered.map(r=>r.departamento)).length} deptos · ${uniq(filtered.map(r=>r.estacion)).length} estaciones`;
 
   // Timeseries
   const byYM = sumMap(filtered, ymKey);
@@ -129,250 +126,189 @@ function render() {
     x, y,
     type: 'scatter',
     mode: 'lines+markers',
-    line: { color: '#f59e0b', width: 3 },
-    marker: { size: 6, color: '#22c55e' }
+    line: { color: '#22d3ee', width: 3 },
+    marker: { size: 6 }
   }], {
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { color: '#e6edf3' },
+    font: { color: '#e2e8f0' },
     margin: { t: 10, r: 10, b: 40, l: 70 },
-    xaxis: { title: 'Año-Mes', gridcolor: '#21304a' },
-    yaxis: { title: 'Tráfico Total', gridcolor: '#21304a' },
+    xaxis: { title: 'Año-Mes', gridcolor: '#334155' },
+    yaxis: { title: 'Tráfico Total', gridcolor: '#334155' },
   }, {displayModeBar: false});
 
   // Top stations
-  const topEst = topN(sumMap(filtered, r=>r.estacion), 12);
+  const topEst = Array.from(sumMap(filtered, r => r.estacion).entries())
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0, 12);
+
+  const estY = topEst.map(([k,_]) => k).reverse();
+  const estX = topEst.map(([_,v]) => v).reverse();
+
   Plotly.newPlot('chart_top_est', [{
-    x: topEst.map(x=>x[1]).reverse(),
-    y: topEst.map(x=>x[0]).reverse(),
-    type: 'bar', orientation: 'h',
-    marker: { color: '#22c55e' }
+    x: estX,
+    y: estY,
+    type: 'bar',
+    orientation: 'h',
+    marker: { color: '#38bdf8' }
   }], {
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { color: '#e6edf3' },
+    font: { color: '#e2e8f0' },
     margin: { t: 10, r: 10, b: 40, l: 190 },
-    xaxis: { title: 'Tráfico Total', gridcolor: '#21304a' },
+    xaxis: { title: 'Tráfico Total', gridcolor: '#334155' },
     yaxis: { automargin: true },
   }, {displayModeBar: false});
 
   // Top departments
-  const topDepList = topN(sumMap(filtered, r=>r.departamento), 12);
+  const topDep = Array.from(sumMap(filtered, r => r.departamento).entries())
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0, 10);
+
+  const depY = topDep.map(([k,_]) => k).reverse();
+  const depX = topDep.map(([_,v]) => v).reverse();
+
   Plotly.newPlot('chart_top_dep', [{
-    x: topDepList.map(x=>x[1]).reverse(),
-    y: topDepList.map(x=>x[0]).reverse(),
-    type: 'bar', orientation: 'h',
-    marker: { color: '#60a5fa' }
+    x: depX,
+    y: depY,
+    type: 'bar',
+    orientation: 'h',
+    marker: { color: '#34d399' }
   }], {
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { color: '#e6edf3' },
+    font: { color: '#e2e8f0' },
     margin: { t: 10, r: 10, b: 40, l: 190 },
-    xaxis: { title: 'Tráfico Total', gridcolor: '#21304a' },
+    xaxis: { title: 'Tráfico Total', gridcolor: '#334155' },
     yaxis: { automargin: true },
   }, {displayModeBar: false});
 
-  const topDep = topDepList[0];
-  setStory(filtered, total, topDep, topEst[0]);
-
-  // Map values
-  DEPT_VALUES = Object.fromEntries(topN(sumMap(filtered, r=>r.departamento), 200));
-  refreshGeoLayer();
+  setInsights(filtered);
 }
 
-function refreshGeoLayer() {
-  if (!MAP || !GEO_LAYER) return;
-
-  const vals = Object.values(DEPT_VALUES);
-  const max = Math.max(...vals, 1);
-
-  const color = (v) => {
-    if (v == null) return '#22c55e';
-    const t = Math.max(0, Math.min(1, v / (max || 1)));
-    // amber -> green
-    const r = Math.round(245 - 120 * t);
-    const g = Math.round(158 + 60 * t);
-    const b = Math.round(11 + 40 * (1 - t));
-    return `rgb(${r},${g},${b})`;
-  };
-
-  // Keep country outline subtle
-  GEO_LAYER.setStyle(() => ({ fillColor: '#122449', weight: 1.2, color: '#1f2a3f', fillOpacity: 0.10 }));
-
-  // Refresh markers
-  if (MAP.__markerLayer) {
-    MAP.__markerLayer.clearLayers();
-    const CENTROIDS = MAP.__centroids || {};
-
-    for (const [dep, v] of Object.entries(DEPT_VALUES)) {
-      const c = CENTROIDS[dep];
-      if (!c) continue;
-      const radius = 6 + 18 * (v / (max || 1));
-      const marker = L.circleMarker(c, {
-        radius,
-        color: '#0b1220',
-        weight: 1,
-        fillColor: color(v),
-        fillOpacity: 0.85,
-      }).addTo(MAP.__markerLayer);
-      marker.bindTooltip(`<b>${dep}</b><br>Tráfico total: ${fmt(v)}`);
-    }
-  }
-}
-
-async function initMap() {
-  MAP = L.map('map', { scrollWheelZoom: false }).setView([4.57, -74.3], 5);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 9,
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(MAP);
-
-  try {
-    const geo = await fetch('./colombia.geojson').then(r=>r.json());
-    GEO_LAYER = L.geoJSON(geo, {
-      style: () => ({ fillColor: '#122449', weight: 1.2, color: '#1f2a3f', fillOpacity: 0.12 }),
-    }).addTo(MAP);
-
-    
-    const CENTROIDS = {
-      'SANTANDER': [7.12, -73.12],
-      'ANTIOQUIA': [6.25, -75.58],
-      'CUNDINAMARCA': [4.71, -74.07],
-      'VALLE DEL CAUCA': [3.45, -76.53],
-      'BOYACA': [5.54, -73.36],
-      'CESAR': [10.47, -73.25],
-      'TOLIMA': [4.44, -75.24],
-      'CAUCA': [2.44, -76.61],
-      'CORDOBA': [8.75, -75.88],
-      'RISARALDA': [4.81, -75.69],
-      'NORTE DE SAN': [7.89, -72.50],
-      'GUAJIRA': [11.54, -72.91],
-      'HUILA': [2.93, -75.28],
-      'CALDAS': [5.07, -75.52],
-      'NARINO': [1.21, -77.28],
-      'ATLANTICO': [10.98, -74.80],
-      'BOLIVAR': [10.39, -75.48],
-      'MAGDALENA': [11.24, -74.20],
-      'META': [4.15, -73.64],
-      'QUINDIO': [4.53, -75.68],
-      'CASANARE': [5.35, -72.41],
-      'SUCRE': [9.30, -75.40],
-      'CAQUETA': [1.61, -75.61],
-      'PUTUMAYO': [0.83, -77.64],
-      'CHOCO': [5.69, -76.66],
-      'ARAUCA': [7.08, -70.76],
-    };
-
-    // Marker layer
-    const markerLayer = L.layerGroup().addTo(MAP);
-    MAP.__markerLayer = markerLayer;
-    MAP.__centroids = CENTROIDS;
-
-    refreshGeoLayer();
-  } catch (e) {
-    const note = L.control({ position: 'topright' });
-    note.onAdd = () => {
-      const d = L.DomUtil.create('div');
-      d.style.background = 'rgba(17,27,46,.92)';
-      d.style.padding = '10px';
-      d.style.border = '1px solid #21304a';
-      d.style.borderRadius = '10px';
-      d.style.color = '#e6edf3';
-      d.style.maxWidth = '260px';
-      d.innerHTML = '<b>Mapa no disponible</b><br><span style="color:#a8b6c8">No se pudo cargar el GeoJSON externo.</span>';
-      return d;
-    };
-    note.addTo(MAP);
-  }
-}
-
-async function loadCSV() {
-  const text = await fetch('./data_trafico_total.csv', { cache: 'no-store' }).then(r=>r.text());
+function parseCSV(text) {
+  // Minimal CSV parse (assumes no commas inside fields)
   const lines = text.split(/\r?\n/).filter(Boolean);
   const header = lines[0].split(',');
   const idx = Object.fromEntries(header.map((h,i)=>[h.trim(), i]));
 
-  DATA = lines.slice(1).map(line => {
+  return lines.slice(1).map(line => {
     const parts = line.split(',');
-    const anio = Number(parts[idx.anio]);
-    const mes = Number(parts[idx.mes]);
-    const traf = Number(parts[idx.trafico_total]);
-    const dep = norm(parts[idx.departamento]);
-    const est = norm(parts[idx.estacion]);
     return {
-      estacion: est,
-      departamento: dep,
-      anio: Number.isFinite(anio) ? anio : null,
-      mes: Number.isFinite(mes) ? mes : null,
-      trafico_total: Number.isFinite(traf) ? traf : 0,
+      estacion: parts[idx.estacion],
+      anio: Number(parts[idx.anio]),
+      mes: Number(parts[idx.mes]),
+      codigo_estacion: parts[idx.codigo_estacion],
+      departamento: parts[idx.departamento],
+      trafico_total: Number(parts[idx.trafico_total]) || 0,
     };
-  }).filter(r => r.anio !== null);
+  });
 }
 
-function computeAvailableOptions(current) {
-  // Cascading filters: compute valid options for each dropdown given the others.
-  const base = DATA;
-
-  const filteredForAnio = applyFilters(base, { ...current, anio: null });
-  const filteredForMes = applyFilters(base, { ...current, mes: null });
-  const filteredForDepto = applyFilters(base, { ...current, departamento: null });
-  const filteredForEst = applyFilters(base, { ...current, estacion: null });
-
-  return {
-    anios: uniq(filteredForAnio.map(r => r.anio)).sort((a,b)=>a-b),
-    meses: uniq(filteredForMes.map(r => r.mes)).filter(x=>x!==null).sort((a,b)=>a-b),
-    deptos: uniq(filteredForDepto.map(r => r.departamento)).sort(),
-    estaciones: uniq(filteredForEst.map(r => r.estacion)).sort(),
+function toCSV(rows) {
+  const header = ['estacion','anio','mes','departamento','codigo_estacion','trafico_total'];
+  const escape = (v) => {
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    if (/[\n\r,"]/g.test(s)) return '"' + s.replaceAll('"', '""') + '"';
+    return s;
   };
+  const lines = [header.join(',')];
+  for (const r of rows) {
+    lines.push(header.map(k => escape(r[k])).join(','));
+  }
+  return lines.join('\n');
 }
 
-function repopulateFilters() {
-  const current = getFilters();
-  const opts = computeAvailableOptions(current);
+function downloadText(filename, text) {
+  const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
-  // Preserve selection if still valid, else reset
-  const keepOrReset = (select, validValues) => {
-    const prev = select.value;
-    const ok = prev === '' || validValues.map(String).includes(String(prev));
-    return ok ? prev : '';
-  };
+async function loadAutoOrFile() {
+  // 1) Try fetch (works if served via http.server or similar)
+  try {
+    setStatus('cargando CSV (auto)…');
+    const resp = await fetch('./data_trafico_total.csv', { cache: 'no-store' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const text = await resp.text();
+    DATA = parseCSV(text);
+    setStatus(`cargado automáticamente (${DATA.length} filas)`);
+    return;
+  } catch (e) {
+    setStatus('auto no disponible. Selecciona el CSV manualmente.');
+  }
 
-  const prevAnio = keepOrReset(els.anio, opts.anios);
-  const prevMes = keepOrReset(els.mes, opts.meses);
-  const prevDepto = keepOrReset(els.depto, opts.deptos);
-  const prevEst = keepOrReset(els.estacion, opts.estaciones);
-
-  addOptions(els.anio, opts.anios);
-  addOptions(els.mes, opts.meses);
-  addOptions(els.depto, opts.deptos);
-  addOptions(els.estacion, opts.estaciones);
-
-  els.anio.value = prevAnio;
-  els.mes.value = prevMes;
-  els.depto.value = prevDepto;
-  els.estacion.value = prevEst;
+  // 2) If a file is selected, load it
+  const file = els.file.files && els.file.files[0];
+  if (file) {
+    const text = await file.text();
+    DATA = parseCSV(text);
+    setStatus(`cargado desde archivo (${DATA.length} filas)`);
+  }
 }
 
 function populateFilters() {
-  // initial fill
-  repopulateFilters();
+  addOptions(els.anio, uniq(DATA.map(r => r.anio)).sort((a,b)=>a-b));
+  addOptions(els.mes, uniq(DATA.map(r => r.mes)).sort((a,b)=>a-b));
+  addOptions(els.depto, uniq(DATA.map(r => r.departamento)).sort());
+  addOptions(els.estacion, uniq(DATA.map(r => r.estacion)).sort());
 
-  const onChange = () => {
-    repopulateFilters();
-    render();
-  };
-
-  [els.anio, els.mes, els.depto, els.estacion].forEach(el => el.addEventListener('change', onChange));
+  [els.anio, els.mes, els.depto, els.estacion].forEach(el => el.addEventListener('change', render));
 }
 
 async function main() {
-  await loadCSV();
-  await initMap();
-  populateFilters();
-  render();
+  els.btnReload.addEventListener('click', async () => {
+    await loadAutoOrFile();
+    if (DATA.length) {
+      populateFilters();
+      render();
+    }
+  });
+
+  els.file.addEventListener('change', async () => {
+    await loadAutoOrFile();
+    if (DATA.length) {
+      populateFilters();
+      render();
+    }
+  });
+
+  // Download filtered CSV (works on GitHub Pages too)
+  if (els.btnDownloadFiltered) {
+    els.btnDownloadFiltered.addEventListener('click', () => {
+      if (!DATA.length) return;
+      const f = getFilters();
+      const filtered = applyFilters(DATA, f);
+
+      const parts = [
+        f.anio ? `anio${f.anio}` : null,
+        f.mes ? `mes${String(f.mes).padStart(2,'0')}` : null,
+        f.departamento ? `dep_${f.departamento.replaceAll(' ', '_')}` : null,
+        f.estacion ? `est_${f.estacion.replaceAll(' ', '_')}` : null,
+      ].filter(Boolean);
+      const suffix = parts.length ? parts.join('__') : 'todos';
+      const filename = `trafico_total_filtrado__${suffix}.csv`;
+
+      downloadText(filename, toCSV(filtered));
+    });
+  }
+
+  await loadAutoOrFile();
+  if (DATA.length) {
+    populateFilters();
+    render();
+  }
 }
 
 main().catch(err => {
   console.error(err);
-  alert('Error cargando datos. Revisa que data_trafico_total.csv esté en la misma carpeta.');
+  setStatus('error cargando datos');
 });
