@@ -7,6 +7,9 @@ const els = {
   kpi_rows: document.getElementById('kpi_rows'),
   kpi_cov: document.getElementById('kpi_cov'),
   story: document.getElementById('story'),
+  btnFilteredCSV: document.getElementById('btn_download_filtered_csv'),
+  btnFilteredJSON: document.getElementById('btn_download_filtered_json'),
+  btnFullCSV: document.getElementById('btn_download_full_csv'),
 };
 
 let DATA = [];
@@ -114,13 +117,11 @@ function render() {
   const f = getFilters();
   const filtered = applyFilters(DATA, f);
 
-  // KPIs
   const total = filtered.reduce((acc,r)=>acc + (r.trafico_total||0), 0);
   els.kpi_total.textContent = fmt(total);
   els.kpi_rows.textContent = fmt(filtered.length);
   els.kpi_cov.textContent = `${uniq(filtered.map(r=>r.departamento)).length} deptos · ${uniq(filtered.map(r=>r.estacion)).length} estaciones`;
 
-  // Timeseries
   const byYM = sumMap(filtered, ymKey);
   const x = Array.from(byYM.keys()).sort();
   const y = x.map(k => byYM.get(k));
@@ -140,7 +141,6 @@ function render() {
     yaxis: { title: 'Tráfico Total', gridcolor: '#21304a' },
   }, {displayModeBar: false});
 
-  // Top stations
   const topEst = topN(sumMap(filtered, r=>r.estacion), 12);
   Plotly.newPlot('chart_top_est', [{
     x: topEst.map(x=>x[1]).reverse(),
@@ -156,7 +156,6 @@ function render() {
     yaxis: { automargin: true },
   }, {displayModeBar: false});
 
-  // Top departments
   const topDepList = topN(sumMap(filtered, r=>r.departamento), 12);
   Plotly.newPlot('chart_top_dep', [{
     x: topDepList.map(x=>x[1]).reverse(),
@@ -175,7 +174,6 @@ function render() {
   const topDep = topDepList[0];
   setStory(filtered, total, topDep, topEst[0]);
 
-  // Map values
   DEPT_VALUES = Object.fromEntries(topN(sumMap(filtered, r=>r.departamento), 200));
   refreshGeoLayer();
 }
@@ -189,17 +187,14 @@ function refreshGeoLayer() {
   const color = (v) => {
     if (v == null) return '#22c55e';
     const t = Math.max(0, Math.min(1, v / (max || 1)));
-    // amber -> green
     const r = Math.round(245 - 120 * t);
     const g = Math.round(158 + 60 * t);
     const b = Math.round(11 + 40 * (1 - t));
     return `rgb(${r},${g},${b})`;
   };
 
-  // Keep country outline subtle
   GEO_LAYER.setStyle(() => ({ fillColor: '#122449', weight: 1.2, color: '#1f2a3f', fillOpacity: 0.10 }));
 
-  // Refresh markers
   if (MAP.__markerLayer) {
     MAP.__markerLayer.clearLayers();
     const CENTROIDS = MAP.__centroids || {};
@@ -233,41 +228,20 @@ async function initMap() {
       style: () => ({ fillColor: '#122449', weight: 1.2, color: '#1f2a3f', fillOpacity: 0.12 }),
     }).addTo(MAP);
 
-    
     const CENTROIDS = {
-      'SANTANDER': [7.12, -73.12],
-      'ANTIOQUIA': [6.25, -75.58],
-      'CUNDINAMARCA': [4.71, -74.07],
-      'VALLE DEL CAUCA': [3.45, -76.53],
-      'BOYACA': [5.54, -73.36],
-      'CESAR': [10.47, -73.25],
-      'TOLIMA': [4.44, -75.24],
-      'CAUCA': [2.44, -76.61],
-      'CORDOBA': [8.75, -75.88],
-      'RISARALDA': [4.81, -75.69],
-      'NORTE DE SAN': [7.89, -72.50],
-      'GUAJIRA': [11.54, -72.91],
-      'HUILA': [2.93, -75.28],
-      'CALDAS': [5.07, -75.52],
-      'NARINO': [1.21, -77.28],
-      'ATLANTICO': [10.98, -74.80],
-      'BOLIVAR': [10.39, -75.48],
-      'MAGDALENA': [11.24, -74.20],
-      'META': [4.15, -73.64],
-      'QUINDIO': [4.53, -75.68],
-      'CASANARE': [5.35, -72.41],
-      'SUCRE': [9.30, -75.40],
-      'CAQUETA': [1.61, -75.61],
-      'PUTUMAYO': [0.83, -77.64],
-      'CHOCO': [5.69, -76.66],
-      'ARAUCA': [7.08, -70.76],
+      'SANTANDER': [7.12, -73.12],'ANTIOQUIA': [6.25, -75.58],'CUNDINAMARCA': [4.71, -74.07],
+      'VALLE DEL CAUCA': [3.45, -76.53],'BOYACA': [5.54, -73.36],'CESAR': [10.47, -73.25],
+      'TOLIMA': [4.44, -75.24],'CAUCA': [2.44, -76.61],'CORDOBA': [8.75, -75.88],
+      'RISARALDA': [4.81, -75.69],'NORTE DE SAN': [7.89, -72.50],'GUAJIRA': [11.54, -72.91],
+      'HUILA': [2.93, -75.28],'CALDAS': [5.07, -75.52],'NARINO': [1.21, -77.28],
+      'ATLANTICO': [10.98, -74.80],'BOLIVAR': [10.39, -75.48],'MAGDALENA': [11.24, -74.20],
+      'META': [4.15, -73.64],'QUINDIO': [4.53, -75.68],'CASANARE': [5.35, -72.41],
+      'SUCRE': [9.30, -75.40],'CAQUETA': [1.61, -75.61],'PUTUMAYO': [0.83, -77.64],
+      'CHOCO': [5.69, -76.66],'ARAUCA': [7.08, -70.76],
     };
 
-    // Marker layer
-    const markerLayer = L.layerGroup().addTo(MAP);
-    MAP.__markerLayer = markerLayer;
+    MAP.__markerLayer = L.layerGroup().addTo(MAP);
     MAP.__centroids = CENTROIDS;
-
     refreshGeoLayer();
   } catch (e) {
     const note = L.control({ position: 'topright' });
@@ -310,9 +284,7 @@ async function loadCSV() {
 }
 
 function computeAvailableOptions(current) {
-  // Cascading filters: compute valid options for each dropdown given the others.
   const base = DATA;
-
   const filteredForAnio = applyFilters(base, { ...current, anio: null });
   const filteredForMes = applyFilters(base, { ...current, mes: null });
   const filteredForDepto = applyFilters(base, { ...current, departamento: null });
@@ -330,7 +302,6 @@ function repopulateFilters() {
   const current = getFilters();
   const opts = computeAvailableOptions(current);
 
-  // Preserve selection if still valid, else reset
   const keepOrReset = (select, validValues) => {
     const prev = select.value;
     const ok = prev === '' || validValues.map(String).includes(String(prev));
@@ -353,15 +324,52 @@ function repopulateFilters() {
   els.estacion.value = prevEst;
 }
 
-function populateFilters() {
-  // initial fill
-  repopulateFilters();
+function toCSV(rows) {
+  const cols = ['anio', 'mes', 'departamento', 'estacion', 'trafico_total'];
+  const esc = (v) => {
+    const s = String(v ?? '');
+    if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  };
+  return [cols.join(',')]
+    .concat(rows.map(r => cols.map(c => esc(r[c])).join(',')))
+    .join('\n');
+}
 
+function downloadBlob(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function bindDownloads() {
+  els.btnFilteredCSV?.addEventListener('click', () => {
+    const rows = applyFilters(DATA, getFilters());
+    downloadBlob('trafico_filtrado.csv', toCSV(rows), 'text/csv;charset=utf-8;');
+  });
+
+  els.btnFilteredJSON?.addEventListener('click', () => {
+    const rows = applyFilters(DATA, getFilters());
+    downloadBlob('trafico_filtrado.json', JSON.stringify(rows, null, 2), 'application/json;charset=utf-8;');
+  });
+
+  els.btnFullCSV?.addEventListener('click', () => {
+    downloadBlob('trafico_total_base.csv', toCSV(DATA), 'text/csv;charset=utf-8;');
+  });
+}
+
+function populateFilters() {
+  repopulateFilters();
   const onChange = () => {
     repopulateFilters();
     render();
   };
-
   [els.anio, els.mes, els.depto, els.estacion].forEach(el => el.addEventListener('change', onChange));
 }
 
@@ -369,6 +377,7 @@ async function main() {
   await loadCSV();
   await initMap();
   populateFilters();
+  bindDownloads();
   render();
 }
 
