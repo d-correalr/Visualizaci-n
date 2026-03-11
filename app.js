@@ -7,7 +7,6 @@ const els = {
   kpi_rows: document.getElementById('kpi_rows'),
   kpi_cov: document.getElementById('kpi_cov'),
   story: document.getElementById('story'),
-  btnDownloadFiltered: document.getElementById('btnDownloadFiltered'),
 };
 
 let DATA = [];
@@ -109,33 +108,6 @@ function setStory(filtered, total, topDep, topEst) {
       (departamentos) y luego por el top de estaciones dentro de cada territorio. Esto nos dará una visión general sobre como es el trafico del país y sus cuellos de botella.
     </p>
   `;
-}
-
-function toCSV(rows) {
-  const header = ['estacion','departamento','anio','mes','trafico_total'];
-  const escape = (v) => {
-    if (v === null || v === undefined) return '';
-    const s = String(v);
-    if (/[\n\r,"]/g.test(s)) return '"' + s.replaceAll('"', '""') + '"';
-    return s;
-  };
-  const lines = [header.join(',')];
-  for (const r of rows) {
-    lines.push(header.map(k => escape(r[k])).join(','));
-  }
-  return lines.join('\n');
-}
-
-function downloadText(filename, text) {
-  const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function render() {
@@ -261,6 +233,7 @@ async function initMap() {
       style: () => ({ fillColor: '#122449', weight: 1.2, color: '#1f2a3f', fillOpacity: 0.12 }),
     }).addTo(MAP);
 
+    
     const CENTROIDS = {
       'SANTANDER': [7.12, -73.12],
       'ANTIOQUIA': [6.25, -75.58],
@@ -392,32 +365,10 @@ function populateFilters() {
   [els.anio, els.mes, els.depto, els.estacion].forEach(el => el.addEventListener('change', onChange));
 }
 
-function initDownloads() {
-  if (!els.btnDownloadFiltered) return;
-
-  els.btnDownloadFiltered.addEventListener('click', () => {
-    if (!DATA.length) return;
-    const f = getFilters();
-    const filtered = applyFilters(DATA, f);
-
-    const parts = [
-      f.anio ? `anio${f.anio}` : null,
-      f.mes ? `mes${String(f.mes).padStart(2,'0')}` : null,
-      f.departamento ? `dep_${f.departamento.replaceAll(' ', '_')}` : null,
-      f.estacion ? `est_${f.estacion.replaceAll(' ', '_')}` : null,
-    ].filter(Boolean);
-
-    const suffix = parts.length ? parts.join('__') : 'todos';
-    const filename = `trafico_total_filtrado__${suffix}.csv`;
-    downloadText(filename, toCSV(filtered));
-  });
-}
-
 async function main() {
   await loadCSV();
   await initMap();
   populateFilters();
-  initDownloads();
   render();
 }
 
